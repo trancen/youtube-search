@@ -207,6 +207,21 @@
   <!-- 채널 탭 -->
   <div id="channelsTab" class="tab-content" style="display:none">
     <div class="sort-row">
+      <label>API 정렬:</label>
+      <select id="channelApiSort" onchange="reSearchChannels()">
+        <option value="relevance">관련도순</option>
+        <option value="viewCount">조회수순</option>
+        <option value="rating">평점순</option>
+      </select>
+      <label>결과 내 정렬:</label>
+      <select id="channelLocalSort" onchange="sortChannelsLocal()">
+        <option value="default">기본 (API순)</option>
+        <option value="subscribers">구독자 많은순</option>
+        <option value="subscribersAsc">구독자 적은순</option>
+        <option value="views">총 조회수순</option>
+        <option value="videoCount">영상 많은순</option>
+        <option value="avgViews">평균조회 높은순</option>
+      </select>
       <button class="export-btn" onclick="exportCSV('channels')">CSV 내보내기</button>
     </div>
     <div id="channelResults" class="results">
@@ -555,7 +570,7 @@ async function searchChannels(pageToken) {
       q: currentKeyword,
       type: 'channel',
       maxResults: 10,
-      order: 'relevance',
+      order: document.getElementById('channelApiSort')?.value || 'relevance',
     };
     if (pageToken) params.pageToken = pageToken;
 
@@ -623,6 +638,74 @@ async function searchChannels(pageToken) {
   } catch (e) {
     container.innerHTML = `<div class="error">${escHtml(e.message)}</div>`;
   }
+}
+
+function reSearchChannels() {
+  if (!currentKeyword) return;
+  document.getElementById('channelLocalSort').value = 'default';
+  searchChannels();
+}
+
+function sortChannelsLocal() {
+  const sort = document.getElementById('channelLocalSort').value;
+  if (sort === 'default' || !lastChannelData || !lastChannelData.length) return;
+
+  const sorted = [...lastChannelData];
+  sorted.forEach(ch => {
+    const s = ch.statistics;
+    ch._subs = parseInt(s.subscriberCount) || 0;
+    ch._views = parseInt(s.viewCount) || 0;
+    ch._vids = parseInt(s.videoCount) || 0;
+    ch._avgViews = ch._vids > 0 ? Math.round(ch._views / ch._vids) : 0;
+  });
+
+  if (sort === 'subscribers') sorted.sort((a, b) => b._subs - a._subs);
+  else if (sort === 'subscribersAsc') sorted.sort((a, b) => a._subs - b._subs);
+  else if (sort === 'views') sorted.sort((a, b) => b._views - a._views);
+  else if (sort === 'videoCount') sorted.sort((a, b) => b._vids - a._vids);
+  else if (sort === 'avgViews') sorted.sort((a, b) => b._avgViews - a._avgViews);
+
+  const container = document.getElementById('channelResults');
+  container.innerHTML = sorted.map(ch => {
+    const s = ch.statistics;
+    const thumb = ch.snippet.thumbnails.medium?.url || ch.snippet.thumbnails.default?.url;
+    const avgViews = ch._avgViews;
+    return `
+      <div class="channel-card">
+        <div class="channel-avatar" onclick="window.open('https://youtube.com/channel/${ch.id}')">
+          <img src="${thumb}" alt="" loading="lazy">
+        </div>
+        <div class="channel-info">
+          <div class="channel-name" onclick="window.open('https://youtube.com/channel/${ch.id}')">${escHtml(ch.snippet.title)}</div>
+          <div class="channel-handle">${escHtml(ch.snippet.customUrl || '')}</div>
+          <div class="channel-stats">
+            <div class="channel-stat">
+              <div class="num">${formatNumber(s.subscriberCount)}</div>
+              <div class="label">구독자</div>
+            </div>
+            <div class="channel-stat">
+              <div class="num">${formatNumber(s.viewCount)}</div>
+              <div class="label">총 조회수</div>
+            </div>
+            <div class="channel-stat">
+              <div class="num">${formatNumber(s.videoCount)}</div>
+              <div class="label">영상 수</div>
+            </div>
+            <div class="channel-stat">
+              <div class="num">${formatNumber(avgViews)}</div>
+              <div class="label">영상당 평균조회</div>
+            </div>
+          </div>
+          <div class="channel-desc">${escHtml(ch.snippet.description || '')}</div>
+          <div style="margin-top:8px; display:flex; gap:6px;">
+            <button class="copy-btn" onclick="copyText('https://youtube.com/channel/${ch.id}')">URL 복사</button>
+            <button class="copy-btn" onclick="copyText('${ch.id}')">채널ID</button>
+            <button class="copy-btn" onclick="document.getElementById('compareInput').value='${ch.id}';switchTab('compare');addCompareChannel()">비교에 추가</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // 채널 비교
