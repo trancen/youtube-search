@@ -189,6 +189,13 @@
         <option value="short">Shorts Only</option>
         <option value="long">Long-form Only</option>
       </select>
+      <label>Min Duration:</label>
+      <select id="videoMinDuration" onchange="renderVideoResults(lastVideoData)">
+        <option value="0">All</option>
+        <option value="300">&gt; 5 min</option>
+        <option value="600">&gt; 10 min</option>
+        <option value="1200">&gt; 20 min</option>
+      </select>
       <button class="export-btn" onclick="exportCSV('videos')">Export CSV</button>
     </div>
     <div id="videoResults" class="results">
@@ -504,6 +511,12 @@ function renderVideoResults(items) {
   const sort = document.getElementById('videoSort').value;
 
   let sorted = [...items];
+
+  const minDur = parseInt(document.getElementById('videoMinDuration').value || '0');
+  if (minDur > 0) {
+    sorted = sorted.filter(v => getDurationSeconds(v.contentDetails.duration) > minDur);
+  }
+
   if (sort === 'viral') sorted.sort((a, b) => b._viralScore - a._viralScore);
   else if (sort === 'hotComment') sorted.sort((a, b) => b._commentScore - a._commentScore);
   else if (sort === 'engagement') sorted.sort((a, b) => b._engRate - a._engRate);
