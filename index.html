@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube 채널 & 영상 검색기</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #f1f1f1; min-height: 100vh; }
+
+  .header { background: #1a1a1a; padding: 20px 0; border-bottom: 1px solid #333; }
+  .header-inner { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+  .header h1 { font-size: 24px; color: #ff4444; margin-bottom: 16px; }
+  .header h1 span { color: #fff; font-weight: 300; }
+
+  .api-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .api-row input { flex: 1; padding: 10px 14px; background: #272727; border: 1px solid #444; border-radius: 8px; color: #fff; font-size: 14px; }
+  .api-row button { padding: 10px 20px; background: #333; border: 1px solid #555; border-radius: 8px; color: #fff; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .api-row button:hover { background: #444; }
+
+  .search-row { display: flex; gap: 8px; }
+  .search-row input { flex: 1; padding: 12px 16px; background: #121212; border: 1px solid #444; border-radius: 24px; color: #fff; font-size: 16px; outline: none; }
+  .search-row input:focus { border-color: #3ea6ff; }
+  .search-row button { padding: 12px 24px; background: #ff4444; border: none; border-radius: 24px; color: #fff; font-size: 16px; cursor: pointer; font-weight: 600; }
+  .search-row button:hover { background: #cc0000; }
+  .search-row button:disabled { background: #555; cursor: not-allowed; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab { padding: 10px 24px; background: #222; border: none; color: #aaa; font-size: 15px; cursor: pointer; border-radius: 8px 8px 0 0; }
+  .tab.active { background: #333; color: #fff; font-weight: 600; }
+
+  .quota-info { text-align: right; color: #888; font-size: 13px; margin-bottom: 12px; }
+  .quota-info span { color: #ff4444; font-weight: 600; }
+
+  .results { display: grid; gap: 16px; }
+
+  /* 영상 카드 */
+  .video-card { display: flex; gap: 16px; background: #1a1a1a; border-radius: 12px; padding: 16px; transition: background 0.2s; }
+  .video-card:hover { background: #222; }
+  .video-thumb { width: 320px; min-width: 320px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; }
+  .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .video-thumb .duration { position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.8); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .video-info { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .video-title { font-size: 17px; font-weight: 600; line-height: 1.4; cursor: pointer; }
+  .video-title:hover { color: #3ea6ff; }
+  .video-channel { color: #aaa; font-size: 14px; cursor: pointer; }
+  .video-channel:hover { color: #fff; }
+  .video-stats { display: flex; gap: 16px; flex-wrap: wrap; color: #888; font-size: 13px; }
+  .video-stats .stat { display: flex; align-items: center; gap: 4px; }
+  .video-desc { color: #999; font-size: 13px; line-height: 1.5; max-height: 60px; overflow: hidden; }
+  .video-date { color: #666; font-size: 12px; }
+
+  /* 채널 카드 */
+  .channel-card { display: flex; gap: 20px; background: #1a1a1a; border-radius: 12px; padding: 20px; align-items: center; transition: background 0.2s; }
+  .channel-card:hover { background: #222; }
+  .channel-avatar { width: 100px; height: 100px; min-width: 100px; border-radius: 50%; overflow: hidden; cursor: pointer; }
+  .channel-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .channel-info { flex: 1; }
+  .channel-name { font-size: 20px; font-weight: 600; margin-bottom: 6px; cursor: pointer; }
+  .channel-name:hover { color: #3ea6ff; }
+  .channel-handle { color: #aaa; font-size: 14px; margin-bottom: 8px; }
+  .channel-stats { display: flex; gap: 24px; margin-bottom: 10px; }
+  .channel-stat { text-align: center; }
+  .channel-stat .num { font-size: 18px; font-weight: 600; color: #fff; }
+  .channel-stat .label { font-size: 12px; color: #888; }
+  .channel-desc { color: #999; font-size: 13px; line-height: 1.5; max-height: 40px; overflow: hidden; }
+
+  .loading { text-align: center; padding: 60px; color: #888; font-size: 16px; }
+  .error { text-align: center; padding: 40px; color: #ff4444; font-size: 15px; }
+  .empty { text-align: center; padding: 60px; color: #666; font-size: 16px; }
+
+  .sort-row { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .sort-row label { color: #888; font-size: 13px; }
+  .sort-row select { padding: 6px 12px; background: #272727; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 13px; }
+
+  .copy-btn { padding: 4px 10px; background: #333; border: 1px solid #555; border-radius: 4px; color: #aaa; cursor: pointer; font-size: 12px; }
+  .copy-btn:hover { background: #444; color: #fff; }
+
+  .pagination { display: flex; justify-content: center; gap: 12px; margin-top: 20px; }
+  .pagination button { padding: 10px 20px; background: #333; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-size: 14px; }
+  .pagination button:hover { background: #444; }
+  .pagination button:disabled { background: #1a1a1a; color: #555; cursor: not-allowed; }
+
+  @media (max-width: 768px) {
+    .video-card { flex-direction: column; }
+    .video-thumb { width: 100%; min-width: auto; }
+    .channel-stats { gap: 12px; }
+    .channel-card { flex-direction: column; text-align: center; }
+    .channel-stats { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <h1>YouTube <span>채널 & 영상 검색기</span></h1>
+    <div class="api-row">
+      <input type="password" id="apiKey" placeholder="YouTube Data API v3 키 입력">
+      <button onclick="saveApiKey()">저장</button>
+      <button onclick="toggleKeyVisibility()">보기</button>
+    </div>
+    <div class="search-row">
+      <input type="text" id="keyword" placeholder="검색어를 입력하세요 (예: 사주, 타로, 운세)" onkeydown="if(event.key==='Enter') search()">
+      <button id="searchBtn" onclick="search()">검색</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="quota-info">일일 할당량: <span id="quotaUsed">0</span> / 10,000 유닛</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="videos" onclick="switchTab('videos')">영상</button>
+    <button class="tab" data-tab="channels" onclick="switchTab('channels')">채널</button>
+  </div>
+
+  <div id="videosTab">
+    <div class="sort-row">
+      <label>정렬:</label>
+      <select id="videoSort" onchange="search()">
+        <option value="relevance">관련도순</option>
+        <option value="viewCount">조회수순</option>
+        <option value="date">최신순</option>
+        <option value="rating">평점순</option>
+      </select>
+      <label style="margin-left:12px">기간:</label>
+      <select id="videoPeriod" onchange="search()">
+        <option value="">전체</option>
+        <option value="1">최근 1일</option>
+        <option value="7">최근 1주</option>
+        <option value="30">최근 1개월</option>
+        <option value="365">최근 1년</option>
+      </select>
+    </div>
+    <div id="videoResults" class="results">
+      <div class="empty">키워드를 입력하고 검색하세요</div>
+    </div>
+    <div class="pagination" id="videoPagination" style="display:none">
+      <button id="videoPrev" onclick="pageVideos('prev')" disabled>이전</button>
+      <button id="videoNext" onclick="pageVideos('next')" disabled>다음</button>
+    </div>
+  </div>
+
+  <div id="channelsTab" style="display:none">
+    <div id="channelResults" class="results">
+      <div class="empty">키워드를 입력하고 검색하세요</div>
+    </div>
+    <div class="pagination" id="channelPagination" style="display:none">
+      <button id="channelPrev" onclick="pageChannels('prev')" disabled>이전</button>
+      <button id="channelNext" onclick="pageChannels('next')" disabled>다음</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'https://www.googleapis.com/youtube/v3';
+let quotaUsed = parseInt(localStorage.getItem('yt_quota_used') || '0');
+let quotaDate = localStorage.getItem('yt_quota_date') || '';
+let videoPageTokens = { prev: null, next: null };
+let channelPageTokens = { prev: null, next: null };
+let currentKeyword = '';
+
+// 할당량 날짜 리셋
+const today = new Date().toISOString().slice(0, 10);
+if (quotaDate !== today) {
+  quotaUsed = 0;
+  localStorage.setItem('yt_quota_date', today);
+}
+updateQuota(0);
+
+// API 키 로드
+document.getElementById('apiKey').value = localStorage.getItem('yt_api_key') || '';
+
+function saveApiKey() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (key) {
+    localStorage.setItem('yt_api_key', key);
+    alert('API 키가 저장되었습니다.');
+  }
+}
+
+function toggleKeyVisibility() {
+  const input = document.getElementById('apiKey');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function getApiKey() {
+  return (document.getElementById('apiKey').value || localStorage.getItem('yt_api_key') || '').trim();
+}
+
+function updateQuota(cost) {
+  quotaUsed += cost;
+  localStorage.setItem('yt_quota_used', quotaUsed);
+  document.getElementById('quotaUsed').textContent = quotaUsed.toLocaleString();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  document.getElementById('videosTab').style.display = tab === 'videos' ? '' : 'none';
+  document.getElementById('channelsTab').style.display = tab === 'channels' ? '' : 'none';
+}
+
+async function apiFetch(endpoint, params, quotaCost) {
+  const key = getApiKey();
+  if (!key) { alert('API 키를 먼저 입력하세요.'); return null; }
+  params.key = key;
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/${endpoint}?${qs}`);
+  updateQuota(quotaCost);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || '알 수 없는 오류');
+  }
+  return res.json();
+}
+
+function formatNumber(n) {
+  if (!n) return '0';
+  n = parseInt(n);
+  if (n >= 100000000) return (n / 100000000).toFixed(1) + '억';
+  if (n >= 10000) return (n / 10000).toFixed(1) + '만';
+  if (n >= 1000) return (n / 1000).toFixed(1) + '천';
+  return n.toLocaleString();
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}분 전`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}일 전`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}개월 전`;
+  return `${Math.floor(months / 12)}년 전`;
+}
+
+async function search() {
+  currentKeyword = document.getElementById('keyword').value.trim();
+  if (!currentKeyword) return;
+
+  videoPageTokens = { prev: null, next: null };
+  channelPageTokens = { prev: null, next: null };
+
+  await Promise.all([searchVideos(), searchChannels()]);
+}
+
+async function searchVideos(pageToken) {
+  const container = document.getElementById('videoResults');
+  container.innerHTML = '<div class="loading">영상 검색 중...</div>';
+
+  try {
+    const params = {
+      part: 'snippet',
+      q: currentKeyword,
+      type: 'video',
+      maxResults: 10,
+      order: document.getElementById('videoSort').value,
+    };
+
+    const period = document.getElementById('videoPeriod').value;
+    if (period) {
+      const d = new Date();
+      d.setDate(d.getDate() - parseInt(period));
+      params.publishedAfter = d.toISOString();
+    }
+
+    if (pageToken) params.pageToken = pageToken;
+
+    const searchData = await apiFetch('search', params, 100);
+    if (!searchData) { container.innerHTML = ''; return; }
+
+    const videoIds = searchData.items.map(i => i.id.videoId).join(',');
+
+    const videoData = await apiFetch('videos', {
+      part: 'statistics,contentDetails,snippet',
+      id: videoIds,
+    }, 1);
+
+    videoPageTokens.prev = searchData.prevPageToken || null;
+    videoPageTokens.next = searchData.nextPageToken || null;
+
+    if (!videoData.items.length) {
+      container.innerHTML = '<div class="empty">검색 결과가 없습니다</div>';
+      return;
+    }
+
+    container.innerHTML = videoData.items.map(v => {
+      const s = v.statistics;
+      const dur = parseDuration(v.contentDetails.duration);
+      return `
+        <div class="video-card">
+          <div class="video-thumb" onclick="window.open('https://youtube.com/watch?v=${v.id}')">
+            <img src="${v.snippet.thumbnails.medium.url}" alt="" loading="lazy">
+            <div class="duration">${dur}</div>
+          </div>
+          <div class="video-info">
+            <div class="video-title" onclick="window.open('https://youtube.com/watch?v=${v.id}')">${escHtml(v.snippet.title)}</div>
+            <div class="video-channel" onclick="window.open('https://youtube.com/channel/${v.snippet.channelId}')">${escHtml(v.snippet.channelTitle)}</div>
+            <div class="video-stats">
+              <span class="stat">👁 조회수 ${formatNumber(s.viewCount)}</span>
+              <span class="stat">👍 좋아요 ${formatNumber(s.likeCount)}</span>
+              <span class="stat">💬 댓글 ${formatNumber(s.commentCount)}</span>
+            </div>
+            <div class="video-date">${timeAgo(v.snippet.publishedAt)} · ${new Date(v.snippet.publishedAt).toLocaleDateString('ko-KR')}</div>
+            <div class="video-desc">${escHtml(v.snippet.description || '')}</div>
+            <div style="margin-top:auto; display:flex; gap:6px;">
+              <button class="copy-btn" onclick="copyText('https://youtube.com/watch?v=${v.id}')">URL 복사</button>
+              <button class="copy-btn" onclick="copyText('${v.snippet.channelId}')">채널ID 복사</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    updatePagination('video', videoPageTokens);
+  } catch (e) {
+    container.innerHTML = `<div class="error">${escHtml(e.message)}</div>`;
+  }
+}
+
+async function searchChannels(pageToken) {
+  const container = document.getElementById('channelResults');
+  container.innerHTML = '<div class="loading">채널 검색 중...</div>';
+
+  try {
+    const params = {
+      part: 'snippet',
+      q: currentKeyword,
+      type: 'channel',
+      maxResults: 10,
+      order: 'relevance',
+    };
+    if (pageToken) params.pageToken = pageToken;
+
+    const searchData = await apiFetch('search', params, 100);
+    if (!searchData) { container.innerHTML = ''; return; }
+
+    const channelIds = searchData.items.map(i => i.id.channelId).join(',');
+
+    const channelData = await apiFetch('channels', {
+      part: 'statistics,snippet,brandingSettings',
+      id: channelIds,
+    }, 1);
+
+    channelPageTokens.prev = searchData.prevPageToken || null;
+    channelPageTokens.next = searchData.nextPageToken || null;
+
+    if (!channelData.items.length) {
+      container.innerHTML = '<div class="empty">검색 결과가 없습니다</div>';
+      return;
+    }
+
+    container.innerHTML = channelData.items.map(ch => {
+      const s = ch.statistics;
+      const thumb = ch.snippet.thumbnails.medium?.url || ch.snippet.thumbnails.default?.url;
+      return `
+        <div class="channel-card">
+          <div class="channel-avatar" onclick="window.open('https://youtube.com/channel/${ch.id}')">
+            <img src="${thumb}" alt="" loading="lazy">
+          </div>
+          <div class="channel-info">
+            <div class="channel-name" onclick="window.open('https://youtube.com/channel/${ch.id}')">${escHtml(ch.snippet.title)}</div>
+            <div class="channel-handle">${escHtml(ch.snippet.customUrl || '')}</div>
+            <div class="channel-stats">
+              <div class="channel-stat">
+                <div class="num">${formatNumber(s.subscriberCount)}</div>
+                <div class="label">구독자</div>
+              </div>
+              <div class="channel-stat">
+                <div class="num">${formatNumber(s.viewCount)}</div>
+                <div class="label">총 조회수</div>
+              </div>
+              <div class="channel-stat">
+                <div class="num">${formatNumber(s.videoCount)}</div>
+                <div class="label">영상 수</div>
+              </div>
+            </div>
+            <div class="channel-desc">${escHtml(ch.snippet.description || '')}</div>
+            <div style="margin-top:8px; display:flex; gap:6px;">
+              <button class="copy-btn" onclick="copyText('https://youtube.com/channel/${ch.id}')">URL 복사</button>
+              <button class="copy-btn" onclick="copyText('${ch.id}')">채널ID 복사</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    updatePagination('channel', channelPageTokens);
+  } catch (e) {
+    container.innerHTML = `<div class="error">${escHtml(e.message)}</div>`;
+  }
+}
+
+function parseDuration(iso) {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return '0:00';
+  const h = m[1] ? parseInt(m[1]) : 0;
+  const min = m[2] ? parseInt(m[2]) : 0;
+  const sec = m[3] ? parseInt(m[3]) : 0;
+  if (h > 0) return `${h}:${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${min}:${String(sec).padStart(2,'0')}`;
+}
+
+function updatePagination(type, tokens) {
+  const pag = document.getElementById(`${type}Pagination`);
+  pag.style.display = (tokens.prev || tokens.next) ? '' : 'none';
+  document.getElementById(`${type}Prev`).disabled = !tokens.prev;
+  document.getElementById(`${type}Next`).disabled = !tokens.next;
+}
+
+function pageVideos(dir) {
+  const token = dir === 'prev' ? videoPageTokens.prev : videoPageTokens.next;
+  if (token) searchVideos(token);
+}
+
+function pageChannels(dir) {
+  const token = dir === 'prev' ? channelPageTokens.prev : channelPageTokens.next;
+  if (token) searchChannels(token);
+}
+
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const toast = document.createElement('div');
+    toast.textContent = '복사됨!';
+    toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:8px;z-index:999;font-size:14px;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 1500);
+  });
+}
+</script>
+
+</body>
+</html>
